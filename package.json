@@ -1,0 +1,19 @@
+{
+  "name": "shitty-peg",
+  "version": "0.0.0",
+  "description": "A pretty shitty PEG.",
+  "homepage": "https://github.com/leebyron/shitty-peg",
+  "author": {
+    "name": "Lee Byron",
+    "url": "https://github.com/leebyron"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/leebyron/shitty-peg.git"
+  },
+  "main": "./dist/Parser.js",
+  "scripts": {
+    "build": "tsc -d -m commonjs --outDir ./dist ./src/Parser.ts"
+  },
+  "license": "MIT"
+}
