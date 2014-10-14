@@ -102,7 +102,7 @@ var Parse = (function () {
     Parse.prototype.run = function (parser, callback) {
         this._offset = 0;
         try  {
-            var ast = parser(this);
+            var ast = this.one(parser);
             this.eof();
             callback && callback(null, ast);
             return ast;
@@ -251,6 +251,9 @@ var Parse = (function () {
     * If newlines are significant, expects a newline with more indentation.
     */
     Parse.prototype.indent = function () {
+        if (this._offset === 0) {
+            return this;
+        }
         return this._line(1);
     };
 
@@ -259,11 +262,10 @@ var Parse = (function () {
     * Note: Does not consume the newline.
     */
     Parse.prototype.dedent = function () {
-        var c = this;
-        if (c._offset === c._source.body.length) {
-            return c;
+        if (this._offset === this._source.body.length) {
+            return this;
         }
-        return c._line(-1);
+        return this._line(-1);
     };
 
     /**
@@ -471,12 +473,7 @@ var Parse = (function () {
         regex.lastIndex = this._offset;
         var data = regex.exec(this._source.body);
         if (!data || data.index !== this._offset) {
-            var expected = '/' + regex.source + '/';
-            var name = regex.name;
-            if (name) {
-                expected = name + ' ' + expected;
-            }
-            this._expected(expected);
+            this._expected(regex.name || regex.source);
         }
         this._offset += data[0].length;
         return mapper ? mapper(data) : data[0];

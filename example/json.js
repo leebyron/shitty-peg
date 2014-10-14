@@ -6,16 +6,6 @@
 */
 var Parser = require('../dist/Parser');
 
-var jsonStr = '{"string":"stri\\nng\ufb95","integer":1234,"fp":123.345,"exp":1.45e-32,"object":{"deeper":"value"},"array":["one",2],"trueVal":true,"falseVal":false,"nullVal":null}';
-
-console.log(jsonStr);
-
-var jsonVal = Parser.parse(new Parser.Source(jsonStr), json);
-
-console.log(jsonVal);
-
-console.log(JSON.parse(jsonStr));
-
 // Parse and return JS object or value
 function json(c) {
     return c.pushWhitespaceInsignificant().one(value);
@@ -56,8 +46,11 @@ function string(c) {
     return chars.join('');
 }
 
+var NUM_RX = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+NUM_RX.name = 'Number';
+
 function number(c) {
-    return c.one(/-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g, function (data) {
+    return c.one(NUM_RX, function (data) {
         return parseFloat(data[0]);
     });
 }
@@ -84,3 +77,16 @@ function array(c) {
     c.expect(']');
     return arr;
 }
+
+// Try
+var jsonStr = '{"string":"stri\\nng\ufb95","integer":1234,"fp":123.345,"exp":1.45e-32,"object":{"deeper":"value"},"array":["one",2],"trueVal":true,"falseVal":false,"nullVal":null}';
+
+console.log(jsonStr);
+
+console.time('shitty-peg');
+console.log(Parser.parse(new Parser.Source(jsonStr), json));
+console.timeEnd('shitty-peg');
+
+console.time('native');
+console.log(JSON.parse(jsonStr));
+console.timeEnd('native');

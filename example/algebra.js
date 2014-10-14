@@ -8,21 +8,6 @@
 */
 var Parser = require('../dist/Parser');
 
-// Javascript number
-var NUM_RX = /[+-]?\d+(?:\.\d+)?/g;
-NUM_RX.name = 'Number';
-
-var mathStr = '3 + 4 * 12 / 3 + 5 ^ -(3 + 2) * -5 - 1';
-var mathSrc = new Parser.Source(mathStr);
-
-console.log(mathStr);
-
-// Parse and print the calculated result of this expression.
-console.log(Parser.parse(mathSrc, calcMath));
-
-// Parse and print an AST of the expression.
-console.log(JSON.stringify(Parser.parse(mathSrc, astMath), null, '  '));
-
 // Parse the calculated result
 function calcMath(c) {
     return c.pushWhitespaceInsignificant().one(calcAdd);
@@ -49,6 +34,10 @@ function calcExp(c) {
         return Math.pow(c.one(calcParen), c.expect('^').one(calcExp));
     }, calcParen);
 }
+
+// Javascript number
+var NUM_RX = /[+-]?\d+(?:\.\d+)?/g;
+NUM_RX.name = 'Number';
 
 function calcParen(c) {
     return c.oneOf(function (c) {
@@ -102,3 +91,15 @@ function astParen(c) {
         return ({ neg: c.expect('-').one(astParen) });
     });
 }
+
+// Try
+var mathStr = '3 + 4 * 12 / 3 + 5 ^ -(3 + 2) * -5 - 1';
+var mathSrc = new Parser.Source(mathStr);
+
+console.log(mathStr);
+
+// Parse and print the calculated result of this expression.
+console.log(Parser.parse(mathSrc, calcMath));
+
+// Parse and print an AST of the expression.
+console.log(JSON.stringify(Parser.parse(mathSrc, astMath), null, '  '));
