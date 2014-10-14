@@ -24,3 +24,19 @@ or written in CoffeeScript or Purescript without any special plugins.
  * Syncronous execution. No streams right now.
 
  * Not particularly fast.
+
+
+# Getting started
+
+```
+npm install shitty-peg
+```
+
+```
+var peg = require('shitty-peg');
+peg.parse(peg.source('abc'), myParser);
+
+function myParser(p) {
+  return p.many(/[a-z]/g);
+}
+```
