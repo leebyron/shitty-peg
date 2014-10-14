@@ -21,7 +21,7 @@ or written in CoffeeScript or Purescript without any special plugins.
 
 ### Pretty shitty drawbacks
 
- * Syncronous execution. No streams right now.
+ * Synchronous execution. No streams right now.
 
  * Not particularly fast.
 
