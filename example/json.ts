@@ -83,11 +83,19 @@ var jsonStr = '{"string":"stri\\nng\ufb95","integer":1234,"fp":123.345,"exp":1.4
 
 console.log(jsonStr);
 
+// Shitty is about 50x slower than Native JSON.parse in node v0.10
+var shitty;
 console.time('shitty-peg');
-console.log(Parser.parse(new Parser.Source(jsonStr), json));
+for (var x = 0; x < 10000; x++) {
+  shitty = Parser.parse(new Parser.Source(jsonStr), json);
+}
 console.timeEnd('shitty-peg');
+console.log(shitty);
 
-console.time('native');
-console.log(JSON.parse(jsonStr));
-console.timeEnd('native');
-
+var jsonNative;
+console.time('jsonNative');
+for (var x = 0; x < 10000; x++) {
+  jsonNative = JSON.parse(jsonStr);
+}
+console.timeEnd('jsonNative');
+console.log(jsonNative);
