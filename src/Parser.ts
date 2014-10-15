@@ -200,8 +200,8 @@ export class Parse {
    * between each run. Continues until a parser fails, returns an array of
    * parsed tokens, skipping delimiter.
    */
-  any(token, delimiter?) {
-    return this._list(token, delimiter, /* requireOne */ false);
+  any(tokenOrParser, delimiter?) {
+    return this._list(tokenOrParser, delimiter, /* requireOne */ false);
   }
   //any(
   //  token: Token|string|RegExp
@@ -216,8 +216,8 @@ export class Parse {
   /**
    * Like any(), but requires at least one successful parse.
    */
-  many(token, delimiter?) {
-    return this._list(token, delimiter, /* requireOne */ true);
+  many(tokenOrParser, delimiter?) {
+    return this._list(tokenOrParser, delimiter, /* requireOne */ true);
   }
   //many(
   //  token: Token|string|RegExp

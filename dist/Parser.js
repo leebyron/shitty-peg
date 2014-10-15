@@ -165,8 +165,8 @@ var Parse = (function () {
     * between each run. Continues until a parser fails, returns an array of
     * parsed tokens, skipping delimiter.
     */
-    Parse.prototype.any = function (token, delimiter) {
-        return this._list(token, delimiter, false);
+    Parse.prototype.any = function (tokenOrParser, delimiter) {
+        return this._list(tokenOrParser, delimiter, false);
     };
 
     //any(
@@ -180,8 +180,8 @@ var Parse = (function () {
     /**
     * Like any(), but requires at least one successful parse.
     */
-    Parse.prototype.many = function (token, delimiter) {
-        return this._list(token, delimiter, true);
+    Parse.prototype.many = function (tokenOrParser, delimiter) {
+        return this._list(tokenOrParser, delimiter, true);
     };
 
     //many(

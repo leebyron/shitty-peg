@@ -85,11 +85,11 @@ export declare class Parse {
     * between each run. Continues until a parser fails, returns an array of
     * parsed tokens, skipping delimiter.
     */
-    public any(token: any, delimiter?: any): {}[];
+    public any(tokenOrParser: any, delimiter?: any): {}[];
     /**
     * Like any(), but requires at least one successful parse.
     */
-    public many(token: any, delimiter?: any): {}[];
+    public many(tokenOrParser: any, delimiter?: any): {}[];
     /**
     * Runs the parser, returns undefined if the parser failed, but does not
     * result in a ParseError.
