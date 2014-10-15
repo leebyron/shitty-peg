@@ -18,8 +18,8 @@ function yaml(c: Parser.Parse): any {
 
 function value(c: Parser.Parse): any {
   return c.oneOf(
-    object,
     array,
+    object,
     number,
     string
   );
@@ -29,8 +29,8 @@ function object(c: Parser.Parse): Object {
   c.indent();
   var obj = {};
   c.many(c => {
-    var key = c.one(/^[^:]+/);
-    c.expect(':');
+    var key = c.one(/^[^\n:]+/);
+    c.skip(':');
     var val = c.one(value);
     obj[key] = val;
   }, c => c.newline());
@@ -41,21 +41,21 @@ function object(c: Parser.Parse): Object {
 function array(c: Parser.Parse): Object {
   c.indent();
   var arr = [];
-  c.many(c => { arr.push(c.expect('-').one(value)); }, c => c.newline());
+  c.many(c => { arr.push(c.skip('-').one(value)); }, c => c.newline());
   c.dedent();
   return arr;
 }
 
-var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
-(<any>NUM_RX).name = 'Number';
+var NUMBER = Parser.token(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/, 'Number');
 
 function number(c: Parser.Parse): any {
-  return c.one(NUM_RX, parseFloat);
+  return parseFloat(c.one(NUMBER));
 }
 
 function string(c: Parser.Parse): any {
   return c.one(/^[^\n]+/);
 }
+
 
 
 // Try

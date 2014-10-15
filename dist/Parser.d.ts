@@ -6,6 +6,18 @@
 *
 */
 export declare function parse<T>(source: Source, parser: (c: Parse) => T, callback?: (error: ParseError, ast: T) => void): T;
+/**
+* Define tokens.
+*/
+export declare function token(rx: RegExp, name?: string): Token;
+export declare function token(str: string, name?: string): Token;
+export interface Token {
+    tokenize(p: Parse): string;
+    description(): string;
+}
+/**
+* Identify sources.
+*/
 export declare class Source {
     public body: string;
     public name: string;
@@ -39,11 +51,64 @@ export declare class Location {
 * A parsing operation. Chain methods to define and run a parse:
 */
 export declare class Parse {
+    public source: Source;
+    public offset: number;
     /**
-    * Create a new parse operation from a given source.
+    * True if the token is the next to be encountered.
     */
-    constructor(source: Source);
-    public run<T>(parser: (c: Parse) => T, callback?: (error: ParseError, ast: T) => void): T;
+    public isNext(token: Token): boolean;
+    public isNext(token: string): boolean;
+    public isNext(token: RegExp): boolean;
+    /**
+    * Expect the token to be consumed, otherwise a syntax error.
+    */
+    public skip(token: Token): Parse;
+    public skip(token: string): Parse;
+    public skip(token: RegExp): Parse;
+    public skip(parser: (c: Parse) => any): Parse;
+    /**
+    * Expect the token/parser to be found, otherwise a syntax error.
+    * Returns the parsed result.
+    */
+    public one(token: Token): string;
+    public one(token: string): string;
+    public one(token: RegExp): string;
+    public one<T>(parser: (c: Parse) => T): T;
+    public oneOf(...tokenOrParsers: any[]): string;
+    public any(token: any, delimiter?: any): {}[];
+    public many(token: any, delimiter?: any): {}[];
+    /**
+    * Runs the parser, returns undefined if the parser failed, but does not
+    * result in a ParseError.
+    */
+    public optional<T>(parser: (c: Parse) => T): T;
+    /**
+    * If newlines are significant, skips a newline with the same indentation.
+    */
+    public newline(): Parse;
+    /**
+    * If newlines are significant, skips a newline with more indentation.
+    */
+    public indent(): Parse;
+    /**
+    * If newlines are significant, skips a newline with less indentation.
+    * Note: Does not consume the newline.
+    */
+    public dedent(): Parse;
+    /**
+    * Expect the end of the file, otherwise a syntax error.
+    */
+    public end(): Parse;
+    /**
+    * Provide a description and a valid SyntaxError will be returned.
+    */
+    public expected(tokenDescription: string): void;
+    /**
+    * Returns a location descriptor for the current state of the Parse.
+    *
+    * Useful if your AST should have location information.
+    */
+    public location(): Location;
     /**
     * By default, the parser treats whitespace as significant.
     * To treat it as insignificant, use one of the pushWhitespace methods below
@@ -70,65 +135,22 @@ export declare class Parse {
     public pushContext(context: any): Parse;
     public popContext(): Parse;
     /**
-    * Returns a location descriptor for the current token.
+    * Create a new parse operation from a given source.
+    *
+    * Usually just call Parser.parse() directly
     */
-    public location(): Location;
+    constructor(source: Source);
     /**
-    * True if the token is the next to be encountered.
+    * Start a Parse with a given parser.
     */
-    public isNext(token: string): boolean;
-    /**
-    * True if the token was encountered and consumed.
-    */
-    public maybe(token: string): boolean;
-    /**
-    * Expect the token to be consumed, otherwise a syntax error.
-    */
-    public expect(token: string): Parse;
-    /**
-    * Expect the token/regex/parser to be found, otherwise a syntax error.
-    * Returns the parsed result.
-    */
-    public one<T>(token: string, value?: T): T;
-    public one(regex: RegExp): string;
-    public one<T>(regex: RegExp, mapper?: (data: any) => T): T;
-    public one<T>(parser: (c: Parse) => T): T;
-    /**
-    * Expect the end of the file, otherwise a syntax error.
-    */
-    public eof(): Parse;
-    /**
-    * If newlines are significant, expects a newline with the same indentation.
-    */
-    public newline(): Parse;
-    /**
-    * If newlines are significant, expects a newline with more indentation.
-    */
-    public indent(): Parse;
-    /**
-    * If newlines are significant, expects a newline with less indentation.
-    * Note: Does not consume the newline.
-    */
-    public dedent(): Parse;
-    public oneOf<T>(...parsers: any[]): {};
-    /**
-    * Runs the parser, returns undefined if the parser failed, but does not
-    * result in a ParseError.
-    */
-    public optional<T>(parser: (c: Parse) => T): T;
-    public any(token: any, delimiter?: any): {}[];
-    public many(token: any, delimiter?: any): {}[];
-    private _source;
+    public run<T>(parser: (c: Parse) => T, callback?: (error: ParseError, ast: T) => void): T;
     private _context;
-    private _offset;
     private _depth;
     private _sigWhitespace;
     private _syntaxError;
     private _copy();
     private _resume(c);
-    private _expected(token);
     private _whitespace(style?);
     private _line(direction);
     private _list<T>(token, delimiter?, requireOne?);
-    private _regexp(regex, mapper?);
 }

@@ -20,23 +20,23 @@ function calcMath(c: Parser.Parse): any {
 
 function calcAdd(c: Parser.Parse): any {
   return c.oneOf(
-    c => c.one(calcMul) + c.expect('+').one(calcAdd),
-    c => c.one(calcMul) - c.expect('-').one(calcAdd),
+    c => c.one(calcMul) + c.skip('+').one(calcAdd),
+    c => c.one(calcMul) - c.skip('-').one(calcAdd),
     calcMul
   );
 }
 
 function calcMul(c: Parser.Parse): any {
   return c.oneOf(
-    c => c.one(calcExp) * c.expect('*').one(calcMul),
-    c => c.one(calcExp) / c.expect('/').one(calcMul),
+    c => c.one(calcExp) * c.skip('*').one(calcMul),
+    c => c.one(calcExp) / c.skip('/').one(calcMul),
     calcExp
   );
 }
 
 function calcExp(c: Parser.Parse): any {
   return c.oneOf(
-    c => Math.pow(c.one(calcParen), c.expect('^').one(calcExp)),
+    c => Math.pow(c.one(calcParen), c.skip('^').one(calcExp)),
     calcParen
   );
 }
@@ -47,14 +47,14 @@ var NUM_RX = /^[+-]?\d+(?:\.\d+)?/;
 
 function calcParen(c: Parser.Parse): any {
   return c.oneOf(
-    c => c.one(NUM_RX, parseInt),
+    c => parseInt(c.one(NUM_RX)),
     c => {
-      c.expect('(');
+      c.skip('(');
       var m = c.one(calcMath);
-      c.expect(')');
+      c.skip(')');
       return m;
     },
-    c => -c.expect('-').one(calcParen)
+    c => -c.skip('-').one(calcParen)
   );
 }
 
@@ -67,37 +67,34 @@ function astMath(c: Parser.Parse): any {
 
 function astAdd(c: Parser.Parse): any {
   return c.oneOf(
-    c => ({l:c.one(astMul), t: '+', r:c.expect('+').one(astAdd)}),
-    c => ({l:c.one(astMul), t: '-', r:c.expect('-').one(astAdd)}),
+    c => [c.one(astMul), c.oneOf('+','-'), c.one(astAdd)],
     astMul
   );
 }
 
 function astMul(c: Parser.Parse): any {
   return c.oneOf(
-    c => ({l:c.one(astExp), t: '*', r:c.expect('*').one(astMul)}),
-    c => ({l:c.one(astExp), t: '/', r:c.expect('/').one(astMul)}),
+    c => [c.one(astExp), c.oneOf('*','/'), c.one(astMul)],
     astExp
   );
 }
 
 function astExp(c: Parser.Parse): any {
   return c.oneOf(
-    c => ({l:c.one(astParen), t: '^', r:c.expect('^').one(astExp)}),
+    c => [c.one(astParen), c.one('^'), c.one(astExp)],
     astParen
   );
 }
 
 function astParen(c: Parser.Parse): any {
   return c.oneOf(
-    NUM_RX,
+    c => parseInt(c.one(NUM_RX)),
     c => {
-      c.expect('(');
-      var m = c.one(astMath);
-      c.expect(')');
+      var m = c.skip('(').one(astMath);
+      c.skip(')');
       return m;
     },
-    c => ({neg:c.expect('-').one(astParen)})
+    c => [c.one('-'), c.one(astParen)]
   );
 }
 

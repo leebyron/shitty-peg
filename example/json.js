@@ -13,73 +13,72 @@ function json(c) {
 
 function value(c) {
     return c.oneOf(string, number, object, array, function (c) {
-        return c.one('true', true);
+        return c.skip('true') && true;
     }, function (c) {
-        return c.one('false', false);
+        return c.skip('false') && false;
     }, function (c) {
-        return c.one('null', null);
+        return c.skip('null') && null;
     });
 }
 
 function string(c) {
-    c.expect('"').pushWhitespaceAllSignificant();
+    c.skip('"').pushWhitespaceAllSignificant();
     var chars = c.many(function (c) {
         return c.oneOf(/^[^"\\\x7F\x00-\x1F]+/, function (c) {
-            return c.expect('\\').oneOf('"', '\\', '/', function (c) {
-                return c.one('b', '\b');
+            return c.skip('\\').oneOf('"', '\\', '/', function (c) {
+                return c.skip('b') && '\b';
             }, function (c) {
-                return c.one('f', '\f');
+                return c.skip('f') && '\f';
             }, function (c) {
-                return c.one('n', '\n');
+                return c.skip('n') && '\n';
             }, function (c) {
-                return c.one('r', '\r');
+                return c.skip('r') && '\r';
             }, function (c) {
-                return c.one('t', '\t');
+                return c.skip('t') && '\t';
             }, function (c) {
-                return c.expect('u').one(/^[a-fA-F0-9]{4}/, String.fromCharCode);
+                return String.fromCharCode(parseInt(c.skip('u').one(/^[a-fA-F0-9]{4}/), 16));
             });
         });
     });
-    c.expect('"').popWhitespaceSignificance();
+    c.skip('"').popWhitespaceSignificance();
     return chars.join('');
 }
 
-var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
-NUM_RX.name = 'Number';
+var NUMBER = Parser.token(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/, 'NUMBER');
 
 function number(c) {
-    return c.one(NUM_RX, parseFloat);
+    return parseFloat(c.one(NUMBER));
 }
 
 function object(c) {
-    c.expect('{');
+    c.skip('{');
     var obj = {};
     c.any(function (c) {
         var key = c.one(string);
-        c.expect(':');
+        c.skip(':');
         var val = c.one(value);
         obj[key] = val;
     }, ',');
-    c.expect('}');
+    c.skip('}');
     return obj;
 }
 
 function array(c) {
-    c.expect('[');
+    c.skip('[');
     var arr = [];
     c.any(function (c) {
         arr.push(c.one(value));
     }, ',');
-    c.expect(']');
+    c.skip(']');
     return arr;
 }
 
 // Try
-var jsonStr = '{"string":"stri\\nng\ufb95","integer":1234,"fp":123.345,"exp":1.45e-32,"object":{"deeper":"value"},"array":["one",2],"trueVal":true,"falseVal":false,"nullVal":null}';
+var jsonStr = '{  "string":  "stri\\nng\\ufb95",  "integer": 1234, "fp" : \n' + '123.345,  "exp":1.45e-32, "object": { "deeper":"value"}, "array":   \n' + ' ["one", 2], "  trueVal  ":true, "falseVal":false,  "nullVal":null  }';
 
 console.log(jsonStr);
 
-// Shitty is about 40x slower than Native JSON.parse in node v0.10
+// Shitty is about 50-100x slower than Native JSON.parse in node v0.10
 var shitty;
 console.time('shitty-peg');
 for (var x = 0; x < 10000; x++) {

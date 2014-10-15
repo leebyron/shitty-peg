@@ -12,15 +12,15 @@ function yaml(c) {
 }
 
 function value(c) {
-    return c.oneOf(object, array, number, string);
+    return c.oneOf(array, object, number, string);
 }
 
 function object(c) {
     c.indent();
     var obj = {};
     c.many(function (c) {
-        var key = c.one(/^[^:]+/);
-        c.expect(':');
+        var key = c.one(/^[^\n:]+/);
+        c.skip(':');
         var val = c.one(value);
         obj[key] = val;
     }, function (c) {
@@ -34,7 +34,7 @@ function array(c) {
     c.indent();
     var arr = [];
     c.many(function (c) {
-        arr.push(c.expect('-').one(value));
+        arr.push(c.skip('-').one(value));
     }, function (c) {
         return c.newline();
     });
@@ -42,11 +42,10 @@ function array(c) {
     return arr;
 }
 
-var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
-NUM_RX.name = 'Number';
+var NUMBER = Parser.token(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/, 'Number');
 
 function number(c) {
-    return c.one(NUM_RX, parseFloat);
+    return parseFloat(c.one(NUMBER));
 }
 
 function string(c) {

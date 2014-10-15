@@ -20,7 +20,26 @@ export function parse<T>(
   return new Parse(source).run(parser, callback);
 }
 
+/**
+ * Define tokens.
+ */
+export function token(rx: RegExp, name?: string): Token;
+export function token(str: string, name?: string): Token;
 
+export function token(strOrRx, name?: string): Token {
+  return strOrRx instanceof RegExp ?
+    new RegExpToken(strOrRx, name) :
+    new StringToken(strOrRx, name);
+}
+
+export interface Token {
+  tokenize(p: Parse): string;
+  description(): string;
+}
+
+/**
+ * Identify sources.
+ */
 export class Source {
   constructor(
     public body: string,
@@ -42,8 +61,8 @@ export class ParseError {
 
   toString(): string {
     var unexpected = this.location.offset === this.location.source.body.length ?
-      'EOF' : readableToken(this.location.source.body[this.location.offset]);
-    return 'Syntax error: unexpected "' + unexpected + '". ' +
+      'End of source' : tokenDesc(this.location.source.body[this.location.offset]);
+    return 'Syntax error: unexpected ' + unexpected + '. ' +
       'Expected ' + this.expected.join(' or ') + ' at ' + this.location;
   }
 }
@@ -96,42 +115,208 @@ export class Location {
  */
 export class Parse {
 
+  public source: Source;
+  public offset: number;
+
+
+
+  // # Parse rules
+
   /**
-   * Create a new parse operation from a given source.
+   * True if the token is the next to be encountered.
    */
-  constructor(source: Source) {
-    this._source = source;
-    this._context = new Stack();
-    this._offset = 0;
-    this._depth = new Stack(0);
-    this._sigWhitespace = new Stack(WhiteSpaceStyle.NONE);
-    this._syntaxError = new ParseError();
-    this._syntaxError.location = new Location(source, 0);
+  isNext(token: Token): boolean;
+  isNext(token: string): boolean;
+  isNext(token: RegExp): boolean;
+
+  isNext(t) {
+    this._whitespace();
+    return !!tokenize(this, t);
   }
 
-  run<T>(
-    parser: (c: Parse) => T,
-    callback?: (error: ParseError, ast: T) => void
-  ): T {
-    this._offset = 0;
+  /**
+   * Expect the token to be consumed, otherwise a syntax error.
+   */
+  skip(token: Token): Parse;
+  skip(token: string): Parse;
+  skip(token: RegExp): Parse;
+  skip(parser: (c: Parse) => any): Parse;
+
+  skip(token) {
+    this.one(token);
+    return this;
+  }
+
+  /**
+   * Expect the token/parser to be found, otherwise a syntax error.
+   * Returns the parsed result.
+   */
+  one(token: Token): string;
+  one(token: string): string;
+  one(token: RegExp): string;
+  one<T>(parser: (c: Parse) => T): T;
+
+  one(t) {
+    if (typeof t === 'function') {
+      return t(this);
+    }
+    this._whitespace();
+    var result = tokenize(this, t);
+    if (!result) {
+      this.expected(tokenDesc(t));
+    }
+    this.offset += result.length;
+    return result;
+  }
+
+
+  /**
+   * Runs each parser in order, stopping once one has completed without
+   * encountering a ParseError. If all parsers fail, the one which parsed
+   * the furthest will present it's ParseError.
+   */
+
+  //oneOf(...tokenOrParsers: Array<Token|string|RegExp|(c: Parse) => any>): any;
+
+  oneOf(...tokenOrParsers) {
+    for (var ii = 0; ii < arguments.length; ii++) {
+      try {
+        var copy = this._copy();
+        var result = copy.one(arguments[ii]);
+        this._resume(copy);
+        return result;
+      } catch (error) {
+        if (error !== this._syntaxError) {
+          throw error;
+        }
+      }
+    }
+    throw this._syntaxError;
+  }
+
+  /**
+   * Runs the parser as many times as possible, running the delimiterParser
+   * between each run. Continues until a parser fails, returns an array of
+   * parsed tokens, skipping delimiter.
+   */
+
+  //any(
+  //  token: Token|string|RegExp
+  //  delimiter?: Token|string|RegExp|(c: Parse) => T
+  //): string[]
+  //any<T>(
+  //  token: (c: Parse) => T
+  //  delimiter?: Token|string|RegExp|(c: Parse) => T
+  //): T[]
+
+  any(token, delimiter?) {
+    return this._list(token, delimiter, /* requireOne */ false);
+  }
+
+  /**
+   * Like any(), but requires at least one successful parse.
+   */
+
+  //many(
+  //  token: Token|string|RegExp
+  //  delimiter?: Token|string|RegExp|(c: Parse) => T
+  //): string[]
+  //many<T>(
+  //  token: (c: Parse) => T
+  //  delimiter?: Token|string|RegExp|(c: Parse) => T
+  //): T[]
+
+  many(token, delimiter?) {
+    return this._list(token, delimiter, /* requireOne */ true);
+  }
+
+  /**
+   * Runs the parser, returns undefined if the parser failed, but does not
+   * result in a ParseError.
+   */
+  optional<T>(parser: (c: Parse) => T): T {
     try {
-      var ast = this.one(parser);
-      this.eof();
-      callback && callback(null, ast);
-      return ast;
+      var copy = this._copy();
+      var result = copy.one(parser);
+      this._resume(copy);
+      return result;
     } catch (error) {
       if (error !== this._syntaxError) {
         throw error;
       }
-      // Clean up the error.
-      this._syntaxError.expected = unique(this._syntaxError.expected).map(readableToken);
-      if (callback) {
-        callback(this._syntaxError, null);
-      } else {
-        throw new Error(this._syntaxError.toString());
-      }
     }
   }
+
+  /**
+   * If newlines are significant, skips a newline with the same indentation.
+   */
+  newline(): Parse {
+    return this._line(IndentationDirection.NEWLINE);
+  }
+
+  /**
+   * If newlines are significant, skips a newline with more indentation.
+   */
+  indent(): Parse {
+    if (this.offset === 0) {
+      return this;
+    }
+    return this._line(IndentationDirection.INDENT);
+  }
+
+  /**
+   * If newlines are significant, skips a newline with less indentation.
+   * Note: Does not consume the newline.
+   */
+  dedent(): Parse {
+    if (this.offset === this.source.body.length) {
+      return this;
+    }
+    return this._line(IndentationDirection.DEDENT);
+  }
+
+  /**
+   * Expect the end of the file, otherwise a syntax error.
+   */
+  end(): Parse {
+    this._whitespace(WhiteSpaceStyle.MULTI_LINE);
+    if (this.offset !== this.source.body.length) {
+      this.expected('End of source');
+    }
+    return this;
+  }
+
+  /**
+   * Provide a description and a valid SyntaxError will be returned.
+   */
+  expected(tokenDescription: string): void {
+    if (this.offset > this._syntaxError.location.offset) {
+      this._syntaxError.location.offset = this.offset;
+      this._syntaxError.expected.length = 0;
+    }
+    if (this.offset >= this._syntaxError.location.offset) {
+      this._syntaxError.expected.push(tokenDescription);
+    }
+    throw this._syntaxError;
+  }
+
+
+
+  // # Metadata
+
+  /**
+   * Returns a location descriptor for the current state of the Parse.
+   *
+   * Useful if your AST should have location information.
+   */
+  location(): Location {
+    this._whitespace();
+    return new Location(this.source, this.offset);
+  }
+
+
+
+  // # Whitespace significance
 
   /**
    * By default, the parser treats whitespace as significant.
@@ -167,6 +352,9 @@ export class Parse {
     return this;
   }
 
+
+  // # Context
+
   /**
    * Arbitrary data provided to be tracked and retrieved while parsing.
    */
@@ -189,200 +377,69 @@ export class Parse {
     return this;
   }
 
+
+  // # Special Use
+
   /**
-   * Returns a location descriptor for the current token.
+   * Create a new parse operation from a given source.
+   *
+   * Usually just call Parser.parse() directly
    */
-  location(): Location {
-    this._whitespace();
-    return new Location(this._source, this._offset);
+  constructor(source: Source) {
+    this.source = source;
+    this.offset = 0;
+    this._context = new Stack();
+    this._depth = new Stack(0);
+    this._sigWhitespace = new Stack(WhiteSpaceStyle.NONE);
+    this._syntaxError = new ParseError();
+    this._syntaxError.location = new Location(source, 0);
   }
 
   /**
-   * True if the token is the next to be encountered.
+   * Start a Parse with a given parser.
    */
-  isNext(token: string): boolean {
-    this._whitespace();
-    return token === this._source.body.substring(this._offset, this._offset + token.length);
-  }
-
-  /**
-   * True if the token was encountered and consumed.
-   */
-  maybe(token: string): boolean {
-    var exists = this.isNext(token);
-    if (exists) {
-      this._offset += token.length;
-    }
-    return exists;
-  }
-
-  /**
-   * Expect the token to be consumed, otherwise a syntax error.
-   */
-  expect(token: string): Parse {
-    if (!this.isNext(token)) {
-      this._expected(token);
-    }
-    this._offset += token.length;
-    return this;
-  }
-
-  /**
-   * Expect the token/regex/parser to be found, otherwise a syntax error.
-   * Returns the parsed result.
-   */
-  one<T>(token: string, value?: T): T;
-  one(regex: RegExp): string;
-  one<T>(regex: RegExp, mapper?: (data: any) => T): T;
-  one<T>(parser: (c: Parse) => T): T;
-
-  one(parser, mapper?) {
-    var type = typeof parser;
-    if (type === 'function') {
-      return parser(this);
-    }
-    if (type === 'string') {
-      this.expect(parser);
-      return arguments.length === 2 ? mapper : parser;
-    }
-    if (parser instanceof RegExp) {
-      return this._regexp(parser, mapper);
-    }
-  }
-
-  /**
-   * Expect the end of the file, otherwise a syntax error.
-   */
-  eof(): Parse {
-    this._whitespace(WhiteSpaceStyle.MULTI_LINE);
-    if (this._offset !== this._source.body.length) {
-      this._expected('EOF');
-    }
-    return this;
-  }
-
-  /**
-   * If newlines are significant, expects a newline with the same indentation.
-   */
-  newline(): Parse {
-    return this._line(0);
-  }
-
-  /**
-   * If newlines are significant, expects a newline with more indentation.
-   */
-  indent(): Parse {
-    if (this._offset === 0) {
-      return this;
-    }
-    return this._line(1);
-  }
-
-  /**
-   * If newlines are significant, expects a newline with less indentation.
-   * Note: Does not consume the newline.
-   */
-  dedent(): Parse {
-    if (this._offset === this._source.body.length) {
-      return this;
-    }
-    return this._line(-1);
-  }
-
-  /**
-   * Runs each parser in order, stopping once one has completed without
-   * encountering a ParseError. If all parsers fail, the one which parsed
-   * the furthest will present it's ParseError.
-   */
-  //oneOf<T>(...parsers: Array<(c: Parse) => T>): T;
-  oneOf<T>(...parsers) {
-    var bestError;
-    for (var ii = 0; ii < parsers.length; ii++) {
-      try {
-        var copy = this._copy();
-        var result = copy.one(parsers[ii]);
-        this._resume(copy);
-        return result;
-      } catch (error) {
-        if (error !== this._syntaxError) {
-          throw error;
-        }
-      }
-    }
-    throw this._syntaxError;
-  }
-
-  /**
-   * Runs the parser, returns undefined if the parser failed, but does not
-   * result in a ParseError.
-   */
-  optional<T>(parser: (c: Parse) => T): T {
+  run<T>(
+    parser: (c: Parse) => T,
+    callback?: (error: ParseError, ast: T) => void
+  ): T {
+    this.offset = 0;
     try {
-      var copy = this._copy();
-      var result = parser(copy);
-      this._resume(copy);
-      return result;
+      var ast = this.one(parser);
+      this.end();
+      callback && callback(null, ast);
+      return ast;
     } catch (error) {
       if (error !== this._syntaxError) {
         throw error;
       }
+      // Clean up the error.
+      this._syntaxError.expected = unique(this._syntaxError.expected);
+      if (callback) {
+        callback(this._syntaxError, null);
+      } else {
+        throw new Error(this._syntaxError.toString());
+      }
     }
   }
 
-  /**
-   * Runs the parser as many times as possible, running the delimiterParser
-   * between each run. Continues until a parser fails, returns an array of
-   * parse results.
-   */
-  //any(token: string, delimiter?: (c: Parse) => any): string[];
-  //any(token: string, delimiter?: string): string[];
-  //any(token: string, delimiter?: RegExp): string[];
-  //any(regex: RegExp, delimiter?: (c: Parse) => any): string[];
-  //any(regex: RegExp, delimiter?: string): string[];
-  //any(regex: RegExp, delimiter?: RegExp): string[];
-  //any<T>(parser: (c: Parse) => T, delimiter?: (c: Parse) => any): T[];
-  //any<T>(parser: (c: Parse) => T, delimiter?: string): T[];
-  //any<T>(parser: (c: Parse) => T, delimiter?: RegExp): T[];
-  any(token, delimiter?) {
-    return this._list(token, delimiter, /* requireOne */ false);
-  }
 
-  /**
-   * Like any(), but expects at least one successful parse.
-   */
-
-  //many(token: string, delimiter?: (c: Parse) => any): string[];
-  //many(token: string, delimiter?: string): string[];
-  //many(token: string, delimiter?: RegExp): string[];
-  //many(regex: RegExp, delimiter?: (c: Parse) => any): string[];
-  //many(regex: RegExp, delimiter?: string): string[];
-  //many(regex: RegExp, delimiter?: RegExp): string[];
-  //many<T>(parser: (c: Parse) => T, delimiter?: (c: Parse) => any): T[];
-  //many<T>(parser: (c: Parse) => T, delimiter?: string): T[];
-  //many<T>(parser: (c: Parse) => T, delimiter?: RegExp): T[];
-
-  many(token, delimiter?) {
-    return this._list(token, delimiter, /* requireOne */ true);
-  }
 
   // Private
 
-  private _source: Source;
   private _context: Stack<any>;
-  private _offset: number;
   private _depth: Stack<number>;
   private _sigWhitespace: Stack<WhiteSpaceStyle>;
   private _syntaxError: ParseError;
 
   private _copy(): Parse {
-    return (new Parse(this._source))._resume(this);
+    return (new Parse(this.source))._resume(this);
   }
 
   private _resume(c: Parse): Parse {
     if (this !== c) {
-      this._source = c._source;
+      this.source = c.source;
       this._context = c._context;
-      this._offset = c._offset;
+      this.offset = c.offset;
       this._depth = c._depth;
       this._sigWhitespace = c._sigWhitespace;
       this._syntaxError = c._syntaxError;
@@ -390,81 +447,76 @@ export class Parse {
     return this;
   }
 
-  private _expected(token: string): void {
-    if (this._offset > this._syntaxError.location.offset) {
-      this._syntaxError.location.offset = this._offset;
-      this._syntaxError.expected.length = 0;
-    }
-    if (this._offset >= this._syntaxError.location.offset) {
-      this._syntaxError.expected.push(token);
-    }
-    throw this._syntaxError;
-  }
-
   private _whitespace(style?: WhiteSpaceStyle): Parse {
     style = style || this._sigWhitespace.value;
     if (style === WhiteSpaceStyle.NONE) {
       return this;
     }
-    var allowNewline = style === WhiteSpaceStyle.MULTI_LINE;
-    while (true) {
-      var charAt = this._source.body[this._offset];
-      if (charAt === ' ' || charAt === '\t' || charAt === '\r' ||
-          (allowNewline && charAt === '\n')) {
-        this._offset += 1;
-      } else if (charAt === '\\') {
-        if (this._source.body[this._offset + 1] === '\n') {
-          this._offset += 2;
-        }
-      } else {
-        break;
-      }
+    var sp = tokenizeRx(
+      this,
+      style === WhiteSpaceStyle.MULTI_LINE ?
+        ALL_WHITESPACE_RX :
+        SINGLE_LINE_WHITESPACE_RX
+    );
+    if (sp) {
+      this.offset += sp.length;
     }
     return this;
   }
 
-  private _line(direction: number): Parse {
+  private _line(direction: IndentationDirection): Parse {
     var style = this._sigWhitespace.value;
     invariant(
       style !== WhiteSpaceStyle.MULTI_LINE,
       'Cannot parse significant lines when white space is insignificant'
     );
     var c = this._whitespace();
-    if (direction === -1) {
-      c = c._copy();
-    }
+
+    var offset = c.offset;
     var depth;
-    c = c.pushWhitespaceAllSignificant();
-    do {
-      c = c.expect('\n');
+    if (c.source.body[offset] !== '\n') {
+      this.expected(indentationDesc(direction));
+    }
+    offset++;
+    while (true) {
       depth = 0;
-      while (c.isNext(' ') || c.isNext('\t')) {
-        if (c.isNext(' ')) {
-          depth += 1;
-        } else if (c.isNext('\t')) {
+      while (true) {
+        var next = c.source.body[offset];
+        if (next === ' ') {
+          depth++;
+          offset++;
+        } else if (next === '\t') {
           depth += 2;
+          offset++;
+        } else {
+          break;
         }
-        c._offset += 1;
       }
-    } while (c.isNext('\n'));
-    c = c.popWhitespaceSignificance();
+      if (c.source.body[offset] !== '\n') {
+        break;
+      }
+      offset++;
+    }
+    if (direction !== IndentationDirection.DEDENT) {
+      c.offset = offset;
+    }
 
     var currentDepth = this._depth.value;
-    if (direction === 0) { // newline
+    if (direction === IndentationDirection.NEWLINE) {
       if (depth !== currentDepth) {
-        this._expected('newline');
+        this.expected(indentationDesc(direction));
       }
       this._resume(c);
-    } else if (direction === 1) { // indent
+    } else if (direction === IndentationDirection.INDENT) {
       if (depth <= currentDepth) {
-        this._expected('indent');
+        this.expected(indentationDesc(direction));
       }
       this._resume(c);
       this._depth = this._depth.push(depth);
-    } else if (direction === -1) { // dedent
+    } else if (direction === IndentationDirection.DEDENT) {
       var prevDepth = this._depth.pop().value;
       if (depth > prevDepth) {
-        this._expected('dedent');
+        this.expected(indentationDesc(direction));
       }
       this._depth = this._depth.pop();
     } else {
@@ -502,18 +554,10 @@ export class Parse {
     this._resume(c);
     return astList;
   }
-
-  private _regexp(regex: RegExp, mapper?: (data: any) => any): any {
-    invariant(regex.source[0] === '^', 'RegExp must start with ^');
-    this._whitespace();
-    var data = regex.exec(this._source.body.substr(this._offset));
-    if (!data) {
-      this._expected((<any>regex).name || regex.source);
-    }
-    this._offset += data[0].length;
-    return mapper ? mapper.apply(null, data) : data[0];
-  }
 }
+
+var ALL_WHITESPACE_RX = /^\s+/;
+var SINGLE_LINE_WHITESPACE_RX = /^(?:[ \t]|(?:\\\n))+/;
 
 enum WhiteSpaceStyle {
   SINGLE_LINE = 1,
@@ -521,15 +565,92 @@ enum WhiteSpaceStyle {
   NONE
 }
 
+enum IndentationDirection {
+  DEDENT,
+  NEWLINE,
+  INDENT
+}
+
+function indentationDesc(dir: IndentationDirection) {
+  switch (dir) {
+    case IndentationDirection.DEDENT: return 'Dedent';
+    case IndentationDirection.NEWLINE: return 'Newline';
+    case IndentationDirection.INDENT: return 'Indent';
+  }
+}
+
 function unique(list: Array<string>): Array<string> {
   var existsSet = {};
   return list.filter(item => !existsSet[item] && (existsSet[item] = true));
 }
 
-function readableToken(token: string): string {
-  switch (token) {
-    case '\n': return '\\n';
-    case ' ': return '<sp>';
-    default: return token;
+function tokenDesc(maybeToken) {
+  return (
+    maybeToken.description ? maybeToken.description() :
+    maybeToken instanceof RegExp ? tokenDescRx(maybeToken) :
+    tokenDescStr(maybeToken)
+  );
+}
+
+function tokenDescStr(str) {
+  return JSON.stringify(str);
+}
+
+function tokenDescRx(rx) {
+  return rx.source;
+}
+
+function tokenize(p, maybeToken) {
+  return (
+    typeof maybeToken === 'string' ? tokenizeStr(p, maybeToken) :
+    maybeToken.tokenize ? maybeToken.tokenize(p) :
+    maybeToken instanceof RegExp ? tokenizeRx(p, maybeToken) :
+    null
+  );
+}
+
+function tokenizeStr(p, str) {
+  return str === p.source.body.substr(p.offset, str.length) && str;
+}
+
+function tokenizeRx(p, rx) {
+  if (!rx.__tokenSafe) {
+    if (rx.source[0] !== '^') {
+      throw new Error('RegExp Token must start with ^');
+    }
+    rx.__tokenSafe = true;
+  }
+  var data = rx.exec(p.source.body.substr(p.offset));
+  return data && data[0];
+}
+
+
+class StringToken implements Token {
+  constructor(private token: string, private name?: string) {
+    this.token = token;
+    this.name = name;
+  }
+
+  tokenize(p: Parse): string {
+    return tokenizeStr(p, this.token);
+  }
+
+  description(): string {
+    return this.name || tokenDescStr(this.token);
+  }
+}
+
+class RegExpToken implements Token {
+  constructor(private token: RegExp, private name?: string) {
+    this.token = token;
+    this.name = name;
+  }
+
+  tokenize(p: Parse): string {
+    return tokenizeRx(p, this.token);
+  }
+
+  description(): string {
+    return this.name || tokenDescRx(this.token);
   }
 }

@@ -15,23 +15,23 @@ function calcMath(c) {
 
 function calcAdd(c) {
     return c.oneOf(function (c) {
-        return c.one(calcMul) + c.expect('+').one(calcAdd);
+        return c.one(calcMul) + c.skip('+').one(calcAdd);
     }, function (c) {
-        return c.one(calcMul) - c.expect('-').one(calcAdd);
+        return c.one(calcMul) - c.skip('-').one(calcAdd);
     }, calcMul);
 }
 
 function calcMul(c) {
     return c.oneOf(function (c) {
-        return c.one(calcExp) * c.expect('*').one(calcMul);
+        return c.one(calcExp) * c.skip('*').one(calcMul);
     }, function (c) {
-        return c.one(calcExp) / c.expect('/').one(calcMul);
+        return c.one(calcExp) / c.skip('/').one(calcMul);
     }, calcExp);
 }
 
 function calcExp(c) {
     return c.oneOf(function (c) {
-        return Math.pow(c.one(calcParen), c.expect('^').one(calcExp));
+        return Math.pow(c.one(calcParen), c.skip('^').one(calcExp));
     }, calcParen);
 }
 
@@ -41,14 +41,14 @@ NUM_RX.name = 'Number';
 
 function calcParen(c) {
     return c.oneOf(function (c) {
-        return c.one(NUM_RX, parseInt);
+        return parseInt(c.one(NUM_RX));
     }, function (c) {
-        c.expect('(');
+        c.skip('(');
         var m = c.one(calcMath);
-        c.expect(')');
+        c.skip(')');
         return m;
     }, function (c) {
-        return -c.expect('-').one(calcParen);
+        return -c.skip('-').one(calcParen);
     });
 }
 
@@ -59,34 +59,31 @@ function astMath(c) {
 
 function astAdd(c) {
     return c.oneOf(function (c) {
-        return ({ l: c.one(astMul), t: '+', r: c.expect('+').one(astAdd) });
-    }, function (c) {
-        return ({ l: c.one(astMul), t: '-', r: c.expect('-').one(astAdd) });
+        return [c.one(astMul), c.oneOf('+', '-'), c.one(astAdd)];
     }, astMul);
 }
 
 function astMul(c) {
     return c.oneOf(function (c) {
-        return ({ l: c.one(astExp), t: '*', r: c.expect('*').one(astMul) });
-    }, function (c) {
-        return ({ l: c.one(astExp), t: '/', r: c.expect('/').one(astMul) });
+        return [c.one(astExp), c.oneOf('*', '/'), c.one(astMul)];
     }, astExp);
 }
 
 function astExp(c) {
     return c.oneOf(function (c) {
-        return ({ l: c.one(astParen), t: '^', r: c.expect('^').one(astExp) });
+        return [c.one(astParen), c.one('^'), c.one(astExp)];
     }, astParen);
 }
 
 function astParen(c) {
-    return c.oneOf(NUM_RX, function (c) {
-        c.expect('(');
-        var m = c.one(astMath);
-        c.expect(')');
+    return c.oneOf(function (c) {
+        return parseInt(c.one(NUM_RX));
+    }, function (c) {
+        var m = c.skip('(').one(astMath);
+        c.skip(')');
         return m;
     }, function (c) {
-        return ({ neg: c.expect('-').one(astParen) });
+        return [c.one('-'), c.one(astParen)];
     });
 }
 
