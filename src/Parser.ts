@@ -458,8 +458,8 @@ export class Parse {
   private _resume(c: Parse): Parse {
     if (this !== c) {
       this.source = c.source;
-      this._context = c._context;
       this.offset = c.offset;
+      this._context = c._context;
       this._depth = c._depth;
       this._sigWhitespace = c._sigWhitespace;
       this._syntaxError = c._syntaxError;
