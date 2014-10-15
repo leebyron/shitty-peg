@@ -19,7 +19,7 @@ function object(c) {
     c.indent();
     var obj = {};
     c.many(function (c) {
-        var key = c.one(/[^:]+/g);
+        var key = c.one(/^[^:]+/);
         c.expect(':');
         var val = c.one(value);
         obj[key] = val;
@@ -42,17 +42,15 @@ function array(c) {
     return arr;
 }
 
-var NUM_RX = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 NUM_RX.name = 'Number';
 
 function number(c) {
-    return c.one(NUM_RX, function (data) {
-        return parseFloat(data[0]);
-    });
+    return c.one(NUM_RX, parseFloat);
 }
 
 function string(c) {
-    return c.one(/[^\n]+/g);
+    return c.one(/^[^\n]+/);
 }
 
 // Try

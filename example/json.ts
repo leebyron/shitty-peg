@@ -31,7 +31,7 @@ function value(c: Parser.Parse): any {
 function string(c: Parser.Parse): String {
   c.expect('"').pushWhitespaceAllSignificant();
   var chars = c.many(c => c.oneOf(
-    /[^"\\\x7F\x00-\x1F]/g,
+    /^[^"\\\x7F\x00-\x1F]+/,
     c => c.expect('\\').oneOf(
       '"',
       '\\',
@@ -41,18 +41,18 @@ function string(c: Parser.Parse): String {
       c => c.one('n', '\n'),
       c => c.one('r', '\r'),
       c => c.one('t', '\t'),
-      c => c.expect('u').one(/[a-fA-F0-9]{4}/, data => String.fromCharCode(data[0]))
+      c => c.expect('u').one(/^[a-fA-F0-9]{4}/, String.fromCharCode)
     )
   ));
   c.expect('"').popWhitespaceSignificance();
   return chars.join('');
 }
 
-var NUM_RX = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 (<any>NUM_RX).name = 'Number';
 
 function number(c: Parser.Parse): Number {
-  return c.one(NUM_RX, data => parseFloat(data[0]));
+  return c.one(NUM_RX, parseFloat);
 }
 
 function object(c: Parser.Parse): Object {
@@ -83,7 +83,7 @@ var jsonStr = '{"string":"stri\\nng\ufb95","integer":1234,"fp":123.345,"exp":1.4
 
 console.log(jsonStr);
 
-// Shitty is about 50x slower than Native JSON.parse in node v0.10
+// Shitty is about 42x slower than Native JSON.parse in node v0.10
 var shitty;
 console.time('shitty-peg');
 for (var x = 0; x < 10000; x++) {

@@ -504,15 +504,14 @@ export class Parse {
   }
 
   private _regexp(regex: RegExp, mapper?: (data: any) => any): any {
-    invariant(regex.global, 'Must provide global RegExp.');
+    invariant(regex.source[0] === '^', 'RegExp must start with ^');
     this._whitespace();
-    regex.lastIndex = this._offset;
-    var data = regex.exec(this._source.body);
-    if (!data || data.index !== this._offset) {
+    var data = regex.exec(this._source.body.substr(this._offset));
+    if (!data) {
       this._expected((<any>regex).name || regex.source);
     }
     this._offset += data[0].length;
-    return mapper ? mapper(data) : data[0];
+    return mapper ? mapper.apply(null, data) : data[0];
   }
 }
 

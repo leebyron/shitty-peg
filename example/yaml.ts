@@ -29,7 +29,7 @@ function object(c: Parser.Parse): Object {
   c.indent();
   var obj = {};
   c.many(c => {
-    var key = c.one(/[^:]+/g);
+    var key = c.one(/^[^:]+/);
     c.expect(':');
     var val = c.one(value);
     obj[key] = val;
@@ -46,15 +46,15 @@ function array(c: Parser.Parse): Object {
   return arr;
 }
 
-var NUM_RX = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 (<any>NUM_RX).name = 'Number';
 
 function number(c: Parser.Parse): any {
-  return c.one(NUM_RX, data => parseFloat(data[0]));
+  return c.one(NUM_RX, parseFloat);
 }
 
 function string(c: Parser.Parse): any {
-  return c.one(/[^\n]+/g);
+  return c.one(/^[^\n]+/);
 }
 
 

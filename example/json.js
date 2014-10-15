@@ -24,7 +24,7 @@ function value(c) {
 function string(c) {
     c.expect('"').pushWhitespaceAllSignificant();
     var chars = c.many(function (c) {
-        return c.oneOf(/[^"\\\x7F\x00-\x1F]/g, function (c) {
+        return c.oneOf(/^[^"\\\x7F\x00-\x1F]+/, function (c) {
             return c.expect('\\').oneOf('"', '\\', '/', function (c) {
                 return c.one('b', '\b');
             }, function (c) {
@@ -36,9 +36,7 @@ function string(c) {
             }, function (c) {
                 return c.one('t', '\t');
             }, function (c) {
-                return c.expect('u').one(/[a-fA-F0-9]{4}/, function (data) {
-                    return String.fromCharCode(data[0]);
-                });
+                return c.expect('u').one(/^[a-fA-F0-9]{4}/, String.fromCharCode);
             });
         });
     });
@@ -46,13 +44,11 @@ function string(c) {
     return chars.join('');
 }
 
-var NUM_RX = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+var NUM_RX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 NUM_RX.name = 'Number';
 
 function number(c) {
-    return c.one(NUM_RX, function (data) {
-        return parseFloat(data[0]);
-    });
+    return c.one(NUM_RX, parseFloat);
 }
 
 function object(c) {
@@ -83,6 +79,7 @@ var jsonStr = '{"string":"stri\\nng\ufb95","integer":1234,"fp":123.345,"exp":1.4
 
 console.log(jsonStr);
 
+// Shitty is about 40x slower than Native JSON.parse in node v0.10
 var shitty;
 console.time('shitty-peg');
 for (var x = 0; x < 10000; x++) {

@@ -36,14 +36,12 @@ function calcExp(c) {
 }
 
 // Javascript number
-var NUM_RX = /[+-]?\d+(?:\.\d+)?/g;
+var NUM_RX = /^[+-]?\d+(?:\.\d+)?/;
 NUM_RX.name = 'Number';
 
 function calcParen(c) {
     return c.oneOf(function (c) {
-        return c.one(NUM_RX, function (data) {
-            return parseInt(data[0]);
-        });
+        return c.one(NUM_RX, parseInt);
     }, function (c) {
         c.expect('(');
         var m = c.one(calcMath);

@@ -42,12 +42,12 @@ function calcExp(c: Parser.Parse): any {
 }
 
 // Javascript number
-var NUM_RX = /[+-]?\d+(?:\.\d+)?/g;
+var NUM_RX = /^[+-]?\d+(?:\.\d+)?/;
 (<any>NUM_RX).name = 'Number';
 
 function calcParen(c: Parser.Parse): any {
   return c.oneOf(
-    c => c.one(NUM_RX, data => parseInt(data[0])),
+    c => c.one(NUM_RX, parseInt),
     c => {
       c.expect('(');
       var m = c.one(calcMath);
