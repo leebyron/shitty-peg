@@ -39,9 +39,7 @@ function object(c: Parser.Parse): Object {
 }
 
 function array(c: Parser.Parse): Object {
-  c.indent();
-  var arr = [];
-  c.many(c => { arr.push(c.skip('-').one(value)); }, c => c.newline());
+  var arr = c.indent().many(c => c.skip('-').one(value), c => c.newline());
   c.dedent();
   return arr;
 }

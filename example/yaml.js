@@ -31,10 +31,8 @@ function object(c) {
 }
 
 function array(c) {
-    c.indent();
-    var arr = [];
-    c.many(function (c) {
-        arr.push(c.skip('-').one(value));
+    var arr = c.indent().many(function (c) {
+        return c.skip('-').one(value);
     }, function (c) {
         return c.newline();
     });

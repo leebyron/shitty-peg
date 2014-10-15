@@ -64,11 +64,7 @@ function object(c) {
 }
 
 function array(c) {
-    c.skip('[');
-    var arr = [];
-    c.any(function (c) {
-        arr.push(c.one(value));
-    }, ',');
+    var arr = c.skip('[').any(value, ',');
     c.skip(']');
     return arr;
 }

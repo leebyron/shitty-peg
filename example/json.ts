@@ -68,9 +68,7 @@ function object(c: Parser.Parse): Object {
 }
 
 function array(c: Parser.Parse): Array<any> {
-  c.skip('[');
-  var arr = [];
-  c.any(c => { arr.push(c.one(value)); }, ',');
+  var arr = c.skip('[').any(value, ',');
   c.skip(']');
   return arr;
 }
