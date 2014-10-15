@@ -37,6 +37,6 @@ var peg = require('shitty-peg');
 peg.parse(peg.source('abc'), myParser);
 
 function myParser(p) {
-  return p.many(/[a-z]/g);
+  return p.many(/^[a-z]/);
 }
 ```
