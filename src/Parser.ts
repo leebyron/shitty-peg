@@ -248,6 +248,26 @@ export class Parse {
   }
 
   /**
+   * Non-consuming look-ahead. Syntax error if it fails.
+   */
+  and(token): Parse {
+    this._copy().one(token);
+    return this;
+  }
+
+  /**
+   * Non-consuming look-ahead. Syntax error if it succeeds.
+   */
+  not(token): Parse {
+    try {
+      this._copy().one(token);
+    } catch (error) {
+      return this;
+    }
+    this.expected('not ' + tokenDesc(token));
+  }
+
+  /**
    * If newlines are significant, skips a newline with the same indentation.
    */
   newline(): Parse {
@@ -588,6 +608,7 @@ function tokenDesc(maybeToken) {
   return (
     maybeToken.description ? maybeToken.description() :
     maybeToken instanceof RegExp ? tokenDescRx(maybeToken) :
+    maybeToken instanceof Function ? maybeToken.name :
     tokenDescStr(maybeToken)
   );
 }

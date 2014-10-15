@@ -210,6 +210,26 @@ var Parse = (function () {
     };
 
     /**
+    * Non-consuming look-ahead. Syntax error if it fails.
+    */
+    Parse.prototype.and = function (token) {
+        this._copy().one(token);
+        return this;
+    };
+
+    /**
+    * Non-consuming look-ahead. Syntax error if it succeeds.
+    */
+    Parse.prototype.not = function (token) {
+        try  {
+            this._copy().one(token);
+        } catch (error) {
+            return this;
+        }
+        this.expected('not ' + tokenDesc(token));
+    };
+
+    /**
     * If newlines are significant, skips a newline with the same indentation.
     */
     Parse.prototype.newline = function () {
@@ -507,7 +527,7 @@ function unique(list) {
 }
 
 function tokenDesc(maybeToken) {
-    return (maybeToken.description ? maybeToken.description() : maybeToken instanceof RegExp ? tokenDescRx(maybeToken) : tokenDescStr(maybeToken));
+    return (maybeToken.description ? maybeToken.description() : maybeToken instanceof RegExp ? tokenDescRx(maybeToken) : maybeToken instanceof Function ? maybeToken.name : tokenDescStr(maybeToken));
 }
 
 function tokenDescStr(str) {

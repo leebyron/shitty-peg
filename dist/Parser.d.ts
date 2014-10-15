@@ -83,6 +83,14 @@ export declare class Parse {
     */
     public optional<T>(parser: (c: Parse) => T): T;
     /**
+    * Non-consuming look-ahead. Syntax error if it fails.
+    */
+    public and(token: any): Parse;
+    /**
+    * Non-consuming look-ahead. Syntax error if it succeeds.
+    */
+    public not(token: any): Parse;
+    /**
     * If newlines are significant, skips a newline with the same indentation.
     */
     public newline(): Parse;
